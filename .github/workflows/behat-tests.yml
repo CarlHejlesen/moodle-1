@@ -22,18 +22,8 @@ jobs:
         options: --health-cmd="mysqladmin ping" --health-interval=10s --health-timeout=5s --health-retries=5
 
     steps:
-      - name: Checkout custom plugin
+      - name: Checkout code
         uses: actions/checkout@v2
-
-      - name: Clone Moodle
-        run: |
-          git clone -b MOODLE_401_STABLE --depth=1 https://github.com/moodle/moodle.git moodle
-          mv moodle/* .
-          mv moodle/.* . || true
-
-      - name: Move custom plugin to Moodle
-        run: |
-          mv mod/livequiz mod/livequiz # Adjust the path as needed to place the plugin in the correct location.
 
       - name: Set up PHP
         uses: shivammathur/setup-php@v2
@@ -42,10 +32,39 @@ jobs:
           extensions: mbstring, intl, xml, curl, zip
           ini-values: post_max_size=256M
 
+      - name: Create temporary composer.json
+        run: |
+          cat <<EOF > composer.json
+          {
+              "require-dev": {
+                  "phpunit/phpunit": "^9.6.18",
+                  "behat/behat": "3.14.*",
+                  "behat/mink": "^1.11.0",
+                  "friends-of-behat/mink-extension": "^2.7.5",
+                  "behat/mink-browserkit-driver": "^2.2.0"
+              },
+              "config": {
+                  "optimize-autoloader": true,
+                  "preferred-install": "dist"
+              }
+          }
+          EOF
+
       - name: Install Composer dependencies
         run: composer install
 
-      - name: Configure Moodle for Behat
+      - name: Create temporary init.php for Behat
+        run: |
+          mkdir -p admin/tool/behat/cli
+          cat <<EOF > admin/tool/behat/cli/init.php
+          <?php
+          // Temporary init.php to mimic necessary Moodle initializations for Behat.
+          define('CLI_SCRIPT', true);
+          require_once(__DIR__ . '/../../../../config.php');
+          // Manually add any other dependencies if necessary
+          EOF
+
+      - name: Create temporary Moodle config.php
         run: |
           echo "<?php" > config.php
           echo "\$CFG = new stdClass();" >> config.php
@@ -64,8 +83,10 @@ jobs:
           echo "\$CFG->behat_dataroot = '/tmp/behatdata';" >> config.php
           echo "require_once(dirname(__FILE__) . '/lib/setup.php');" >> config.php
 
-      - name: Initialize Behat
-        run: php admin/tool/behat/cli/init.php
+      - name: Init Behat for mod_livequiz
+        run: |
+          php admin/tool/behat/cli/init.php
 
       - name: Run Behat Tests for LiveQuiz
-        run: php admin/tool/behat/cli/run.php --component=mod_livequiz --tags="@mod_livequiz"
+        run: |
+          php admin/tool/behat/cli/run.php --component=mod_livequiz --tags="@mod_livequiz"
