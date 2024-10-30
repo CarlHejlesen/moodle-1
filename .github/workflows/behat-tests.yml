@@ -234,15 +234,15 @@ jobs:
         run: | 
           cd server/moodle
           if [ ! -d "server/moodle/behat" ]; then
-            mkdir -p "server/moodle/behat"
-          fi
-
+           mkdir -p "server/moodle/behat"
+           fi
           # Behat konfiguration i config.php
-          echo '$CFG->behat_dataroot = $CFG->dataroot . "/behat";' >> config.php
-          echo '$CFG->behat_wwwroot = "http://127.0.0.1:8000";' >> config.php
-          echo '$CFG->behat_prefix = "beh_";' >> config.php
+             echo '$CFG->behat_dataroot = $CFG->dataroot . "/behat";' >> config.php
+             echo '$CFG->behat_wwwroot = "http://127.0.0.1:8000";' >> config.php
+            echo '$CFG->behat_prefix = "beh_";' >> config.php
 
-          php admin/tool/behat/cli/init.php --enable
+           # Initialiser og aktiver Behat testtilstand
+             php admin/tool/behat/cli/init.php --enable
 
       
 
