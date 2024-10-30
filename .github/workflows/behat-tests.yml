@@ -245,6 +245,7 @@ jobs:
         run: | 
           cd server/moodle
           php admin/tool/behat/cli/init.php --enable
+          echo '$CFG->behat_dataroot_parent = $CFG->dataroot . "/behat";' >>config.ph
       
       # **NYT STEP**: Sørg for korrekte tilladelser og ejerskab til moodledata
       - name: Adjust permissions and ownership for moodledata
