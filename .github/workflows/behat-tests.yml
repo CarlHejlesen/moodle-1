@@ -56,10 +56,10 @@ jobs:
   
               echo "Setting root password..."
               mysql -uroot -S${mariadb_socket} <<EOF
-              FLUSH PRIVILEGES;
-              ALTER USER 'root'@'localhost' IDENTIFIED BY '${root_password}';
-              FLUSH PRIVILEGES;
-             EOF
+            FLUSH PRIVILEGES;
+            ALTER USER 'root'@'localhost' IDENTIFIED BY '${root_password}';
+            FLUSH PRIVILEGES;
+            EOF
               
               # Ensure EOF ends the block, then run additional commands outside the EOF block
               mysql -uroot -p${root_password} -S${mariadb_socket} -e "CREATE DATABASE IF NOT EXISTS ${moodle_db_name}"
