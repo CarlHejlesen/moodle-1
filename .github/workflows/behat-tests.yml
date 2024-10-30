@@ -258,6 +258,22 @@ jobs:
         run: |
           cp server/moodledata/behat/test_environment_enabled.txt server/moodledata/test_environment_enabled.txt
 
+      # **TJEK**: Valider placering af test_environment_enabled.txt
+      - name: Validate test mode file placement
+        run: |
+          echo "**** Checking test_environment_enabled.txt location ****"
+          if [ -f server/moodledata/test_environment_enabled.txt ]; then
+            echo "test_environment_enabled.txt is correctly placed."
+          else
+            echo "Warning: test_environment_enabled.txt is missing in server/moodledata"
+          fi
+
+      # **Force reinitialisering af Behat for sikkerhed**
+      - name: Force Reinitialise Behat
+        run: |
+          cd server/moodle
+          php admin/tool/behat/cli/util.php --reinitialise
+
 
       - name: Run livequiz-specific Behat tests in Firefox
         run: |
