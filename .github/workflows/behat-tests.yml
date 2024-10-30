@@ -250,7 +250,7 @@ jobs:
         run: |
           ps -aux
           cd server/moodle
-          vendor/bin/behat -vv --config `realpath ../moodledata/behat/behatrun/behat/behat.yml` --profile=headlessfirefox
+          vendor/bin/behat -vv --config `realpath ../moodledata/behat/behatrun/behat/behat.yml` --profile=headlessfirefox --tags="@livequiz" mod/livequiz/tests
               
 
       
