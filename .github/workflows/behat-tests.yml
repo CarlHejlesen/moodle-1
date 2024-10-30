@@ -25,7 +25,7 @@ jobs:
         id: setup-php
         uses: shivammathur/setup-php@v2
         with:
-          php-version: '8.0' # Specify version
+          php-version: '8.1' # Specify version
           extensions: phar, iconv, mbstring, gd, intl, sodium, zip
           tools: composer
 
@@ -89,13 +89,13 @@ jobs:
 
       - name: Initialise Moodle to create config.php
         run: |
-          echo en_AU.UTF-8 UTF-8 | sudo tee -a /etc/locale.gen
+          echo en_US.UTF-8 UTF-8 | sudo tee -a /etc/locale.gen  # Changed from en_AU.UTF-8 to en_US.UTF-8
           sudo locale-gen
           if [ "$(php -r "echo ini_get('max_input_vars');")" -lt 5000 ]; then
             echo "max_input_vars = 5000" | sudo tee -a /etc/php/8.0/cli/php.ini
           fi
-          export LANG="en_AU.UTF-8"
-          export LC_ALL="en_AU.UTF-8"
+          export LANG="en_US.UTF-8"  # Changed from en_AU.UTF-8 to en_US.UTF-8
+          export LC_ALL="en_US.UTF-8"  # Changed from en_AU.UTF-8 to en_US.UTF-8
           
           cd server/moodle
           php admin/cli/install.php \
