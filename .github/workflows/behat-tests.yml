@@ -280,18 +280,7 @@ jobs:
           php admin/tool/behat/cli/util_single_run.php --install
 
 
-      - name: Confirm PHP server is still running
-        run: |
-            echo "Verifying PHP server is active on 8000..."
-            ps aux | grep php
-            curl -I http://127.0.0.1:8000 || echo "PHP server at 127.0.0.1:8000 is not accessible"
-  
-      - name: Debug PHP and MariaDB services
-        run: |
-            echo "**** Checking running services ****"
-            ps aux | grep -E "(php|mariadb|mysqld)"
-            echo "**** Testing localhost connection with curl ****"
-            curl -I http://127.0.0.1:8000 || echo "Connection to http://127.0.0.1:8000 failed"
+
 
 
 
