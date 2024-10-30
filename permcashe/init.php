@@ -37,7 +37,8 @@ define('CLI_SCRIPT', true);
 define('CACHE_DISABLE_ALL', true);
 
 // Basic functions.
-require_once(__DIR__ . '/../../../../lib/clilib.php');
+require_once(__DIR__ . '../permcash/lib/clilib.php');
+
 require_once(__DIR__ . '/../../../../lib/behat/lib.php');
 
 list($options, $unrecognized) = cli_get_params(
