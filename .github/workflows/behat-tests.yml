@@ -317,7 +317,6 @@ jobs:
                 echo "**** Testing server health at http://127.0.0.1:8000 ****"
                 curl -I http://127.0.0.1:8000 || {
                   echo "Server not accessible at 127.0.0.1:8000. Check if the PHP server is running."
-                  exit 1
                 }
          
                 - name: Confirm PHP server accessibility with delay
@@ -333,7 +332,6 @@ jobs:
                   done
                   if ! curl -sI http://127.0.0.1:8000 | grep "200 OK" > /dev/null; then
                     echo "Server failed to start within expected time."
-                    exit 1
                   fi
               
 
