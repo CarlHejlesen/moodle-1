@@ -1,92 +1,94 @@
-name: Run Behat Tests for LiveQuiz
+name: Behat
 
 on:
-  push:
-    branches:
-      - behat-carl
   pull_request:
-    branches:
-      - main
+    branches: [ "main", "staging"  ]
+  push:
+    branches: [ "vincetheis-behat" ]
 
 jobs:
-  behat-test:
+  build-test:
     runs-on: ubuntu-latest
 
     services:
       mysql:
-        image: mysql:5.7
+        image: mariadb:latest
         env:
           MYSQL_ROOT_PASSWORD: root
-        ports:
-          - 3306:3306
-        options: --health-cmd="mysqladmin ping" --health-interval=10s --health-timeout=5s --health-retries=5
+          MYSQL_DATABASE: moodle
+        options: --health-cmd="mysqladmin ping --silent" --health-interval=10s --health-timeout=5s --health-retries=5
 
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v2
-
-      - name: Set up PHP
+      - name: Checkout repository
+        uses: actions/checkout@v3
+        
+      - name: Setup PHP
+        id: setup-php
         uses: shivammathur/setup-php@v2
         with:
           php-version: '8.1'
-          extensions: mbstring, intl, xml, curl, zip
-          ini-values: post_max_size=256M
+          extensions: phar, iconv, mbstring, gd, intl, sodium, zip
+          tools: composer
 
-      - name: Create temporary composer.json
+      - name: Install Dependencies
         run: |
-          cat <<EOF > composer.json
-          {
-              "require-dev": {
-                  "phpunit/phpunit": "^9.6.18",
-                  "behat/behat": "3.14.*",
-                  "behat/mink": "^1.11.0",
-                  "friends-of-behat/mink-extension": "^2.7.5",
-                  "behat/mink-browserkit-driver": "^2.2.0"
-              },
-              "config": {
-                  "optimize-autoloader": true,
-                  "preferred-install": "dist"
-              }
-          }
-          EOF
+          sudo apt update
+          sudo apt install -y firefox wget openjdk-11-jre
 
-      - name: Install Composer dependencies
-        run: composer install
-
-      - name: Create temporary init.php for Behat
+      - name: Set up MariaDB Data Directory and Permissions
         run: |
-          mkdir -p admin/tool/behat/cli
-          cat <<EOF > admin/tool/behat/cli/init.php
-          <?php
-          // Temporary init.php to mimic necessary Moodle initializations for Behat.
-          define('CLI_SCRIPT', true);
-          require_once(__DIR__ . '/../../../../config.php');
-          // Manually add any other dependencies if necessary
-          EOF
+          sudo chmod 777 /etc/mysql
 
-      - name: Create temporary Moodle config.php
-        run: |
-          echo "<?php" > config.php
-          echo "\$CFG = new stdClass();" >> config.php
-          echo "\$CFG->dbtype    = 'mysqli';" >> config.php
-          echo "\$CFG->dblibrary = 'native';" >> config.php
-          echo "\$CFG->dbhost    = '127.0.0.1';" >> config.php
-          echo "\$CFG->dbname    = 'moodle';" >> config.php
-          echo "\$CFG->dbuser    = 'root';" >> config.php
-          echo "\$CFG->dbpass    = 'root';" >> config.php
-          echo "\$CFG->prefix    = 'mdl_';" >> config.php
-          echo "\$CFG->wwwroot   = 'http://localhost';" >> config.php
-          echo "\$CFG->dataroot  = '/tmp/moodledata';" >> config.php
-          echo "\$CFG->admin     = 'admin';" >> config.php
-          echo "\$CFG->directorypermissions = 02777;" >> config.php
-          echo "\$CFG->behat_prefix = 'b_';" >> config.php
-          echo "\$CFG->behat_dataroot = '/tmp/behatdata';" >> config.php
-          echo "require_once(dirname(__FILE__) . '/lib/setup.php');" >> config.php
+      - name: Set up geckodriver
+        uses: browser-actions/setup-geckodriver@latest
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Init Behat for mod_livequiz
+      - name: Initialise Moodle (creates config.php)
         run: |
+          export LANG="en_AU.UTF-8"
+          export LC_ALL="en_AU.UTF-8"
+          export PHPRC=`realpath /etc/php/8.3/cli/php.ini`
+          
+          REPO_ROOT="`pwd`"
+          cd "$REPO_ROOT"/server/moodle
+          php admin/cli/install.php \
+              --lang=en \
+              --wwwroot="http://127.0.0.1:8000/" \
+              --dataroot="$REPO_ROOT/server/moodledata" \
+              --dbtype=mysqli \
+              --dbhost=127.0.0.1 \
+              --dbname=moodle \
+              --dbuser=root \
+              --dbpass=root \
+              --dbport=3306 \
+              --non-interactive \
+              --agree-license \
+              --fullname="Moodle Testing" \
+              --shortname="MT" \
+              --adminpass="hunter2"
+              
+      - name: Start PHP Server
+        run: |
+          php -S 127.0.0.1:8000 -t server/moodle &
+
+      - name: Set up Selenium
+        run: |
+          wget https://github.com/SeleniumHQ/selenium/releases/download/selenium-4.25.0/selenium-server-4.25.0.jar
+          java -jar selenium-server-4.25.0.jar standalone &
+
+      - name: Install & Init Behat
+        run: | 
+          cd server/moodle
+          echo '$CFG->behat_dataroot = "$CFG->dataroot/behat";' >> config.php
+          echo '$CFG->behat_prefix = "beh_";' >> config.php
+          echo '$CFG->behat_wwwroot = "http://127.0.0.1:8000";' >> config.php
+
+          # Install dependencies and initialize Behat
+          composer install
           php admin/tool/behat/cli/init.php
 
-      - name: Run Behat Tests for LiveQuiz
+      - name: Run Behat Tests
         run: |
-          php admin/tool/behat/cli/run.php --component=mod_livequiz --tags="@mod_livequiz"
+          cd server/moodle
+          vendor/bin/behat --config "$CFG->behat_dataroot/behat/behat.yml" -vv
