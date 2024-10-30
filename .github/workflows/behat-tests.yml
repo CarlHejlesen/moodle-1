@@ -2,7 +2,7 @@ name: Behat
 
 on:
   pull_request:
-    branches: [ "main", "staging"  ]
+    branches: behat-cart
   push:
     branches: [ "vincetheis-behat" ]
 
