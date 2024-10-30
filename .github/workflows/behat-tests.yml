@@ -32,10 +32,58 @@ jobs:
           extensions: mbstring, intl, xml, curl, zip
           ini-values: post_max_size=256M
 
+      - name: Create temporary composer.json
+        run: |
+          cat <<EOF > composer.json
+          {
+              "require-dev": {
+                  "phpunit/phpunit": "^9.6.18",
+                  "behat/behat": "3.14.*",
+                  "behat/mink": "^1.11.0",
+                  "friends-of-behat/mink-extension": "^2.7.5",
+                  "behat/mink-browserkit-driver": "^2.2.0"
+              },
+              "config": {
+                  "optimize-autoloader": true,
+                  "preferred-install": "dist"
+              }
+          }
+          EOF
+
       - name: Install Composer dependencies
         run: composer install
 
-      - name: Set up Moodle Behat environment
+      - name: Create temporary init.php for Behat
+        run: |
+          mkdir -p admin/tool/behat/cli
+          cat <<EOF > admin/tool/behat/cli/init.php
+          <?php
+          // Include necessary Moodle files and initialize Behat environment.
+          require_once(__DIR__ . '/../../../../config.php');
+          require_once($CFG->dirroot . '/lib/clilib.php');
+          // Initialize Behat here...
+          EOF
+
+      - name: Create temporary Moodle config.php
+        run: |
+          echo "<?php" > config.php
+          echo "\$CFG = new stdClass();" >> config.php
+          echo "\$CFG->dbtype    = 'mysqli';" >> config.php
+          echo "\$CFG->dblibrary = 'native';" >> config.php
+          echo "\$CFG->dbhost    = '127.0.0.1';" >> config.php
+          echo "\$CFG->dbname    = 'moodle';" >> config.php
+          echo "\$CFG->dbuser    = 'root';" >> config.php
+          echo "\$CFG->dbpass    = 'root';" >> config.php
+          echo "\$CFG->prefix    = 'mdl_';" >> config.php
+          echo "\$CFG->wwwroot   = 'http://localhost';" >> config.php
+          echo "\$CFG->dataroot  = '/tmp/moodledata';" >> config.php
+          echo "\$CFG->admin     = 'admin';" >> config.php
+          echo "\$CFG->directorypermissions = 02777;" >> config.php
+          echo "\$CFG->behat_prefix = 'b_';" >> config.php
+          echo "\$CFG->behat_dataroot = '/tmp/behatdata';" >> config.php
+          echo "require_once(dirname(__FILE__) . '/lib/setup.php');" >> config.php
+
+      - name: Init Behat for mod_livequiz
         run: |
           php admin/tool/behat/cli/init.php
 
