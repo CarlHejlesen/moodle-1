@@ -293,6 +293,25 @@ jobs:
               echo "**** Testing localhost connection with curl ****"
               curl -I http://127.0.0.1:8000 || echo "Connection to http://127.0.0.1:8000 failed"
 
+
+      - name: Initialize Behat
+        run: |
+                cd server/moodle
+                php admin/tool/behat/cli/init.php --enable || {
+                  echo "Behat initialization failed.";
+                  exit 1;
+                }
+     
+                
+      - name: Validate test mode file
+        run: |
+                  if [ ! -f server/moodledata/test_environment_enabled.txt ]; then
+                    echo "Error: test_environment_enabled.txt is missing in moodledata.";
+                    exit 1
+                  fi
+              
+
+
       - name: Confirm PHP server accessibility
         run: |
                 echo "**** Testing server health at http://127.0.0.1:8000 ****"
@@ -301,6 +320,24 @@ jobs:
                   exit 1
                 }
          
+                - name: Confirm PHP server accessibility with delay
+                run: |
+                  echo "Waiting for PHP server at http://127.0.0.1:8000..."
+                  for i in {1..10}; do
+                    if curl -sI http://127.0.0.1:8000 | grep "200 OK" > /dev/null; then
+                      echo "PHP server is accessible."
+                      break
+                    fi
+                    echo "Server not accessible, retrying in 2 seconds..."
+                    sleep 2
+                  done
+                  if ! curl -sI http://127.0.0.1:8000 | grep "200 OK" > /dev/null; then
+                    echo "Server failed to start within expected time."
+                    exit 1
+                  fi
+              
+
+
 # Debug - Check behat environment directory
       - name: Verify Behat Environment Directory Structure
         run: |
