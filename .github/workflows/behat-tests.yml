@@ -28,44 +28,14 @@ jobs:
       - name: Set up PHP
         uses: shivammathur/setup-php@v2
         with:
-          php-version: '8.1' # PHP version updated to 8.1
+          php-version: '8.1'
           extensions: mbstring, intl, xml, curl, zip
           ini-values: post_max_size=256M
-
-      - name: Copy composer.json
-        run: |
-          cp permcashe/permcomposer.json composer.json
-
-      - name: Copy init.php and clilib.php for Behat
-        run: |
-          mkdir -p admin/tool/behat/cli
-          cp permcashe/init.php admin/tool/behat/cli/init.php
-          mkdir -p lib
-          cp permcashe/lib/clilib.php lib/clilib.php
 
       - name: Install Composer dependencies
         run: composer install
 
-      - name: Create temporary Moodle config.php
-        run: |
-          echo "<?php" > config.php
-          echo "\$CFG = new stdClass();" >> config.php
-          echo "\$CFG->dbtype    = 'mysqli';" >> config.php
-          echo "\$CFG->dblibrary = 'native';" >> config.php
-          echo "\$CFG->dbhost    = '127.0.0.1';" >> config.php
-          echo "\$CFG->dbname    = 'moodle';" >> config.php
-          echo "\$CFG->dbuser    = 'root';" >> config.php
-          echo "\$CFG->dbpass    = 'root';" >> config.php
-          echo "\$CFG->prefix    = 'mdl_';" >> config.php
-          echo "\$CFG->wwwroot   = 'http://localhost';" >> config.php
-          echo "\$CFG->dataroot  = '/tmp/moodledata';" >> config.php
-          echo "\$CFG->admin     = 'admin';" >> config.php
-          echo "\$CFG->directorypermissions = 02777;" >> config.php
-          echo "\$CFG->behat_prefix = 'b_';" >> config.php
-          echo "\$CFG->behat_dataroot = '/tmp/behatdata';" >> config.php
-          echo "require_once(dirname(__FILE__) . '/lib/setup.php');" >> config.php
-
-      - name: Init Behat for mod_livequiz
+      - name: Set up Moodle Behat environment
         run: |
           php admin/tool/behat/cli/init.php
 
