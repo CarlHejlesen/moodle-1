@@ -154,7 +154,7 @@ jobs:
           # Start PHP built-in server for Moodle
           start_php_server() {
             echo "Starting PHP built-in server for Moodle..."
-            php -S 0.0.0.0:8000 -t `realpath server/moodle` &
+            php -S localhost:8000 -t `realpath server/moodle` &
             PHP_SERVER_PID=$!
           }
 
@@ -201,7 +201,7 @@ jobs:
           cd "$REPO_ROOT"/server/moodle
           php admin/cli/install.php \
               --lang=en \
-              --wwwroot="http://127.0.0.1:8000/" \
+              --wwwroot="http://localhost:8000/" \
               --dataroot="$REPO_ROOT/server/moodledata" \
               --dbpass=root \
               --dbport=3306 \
@@ -239,7 +239,7 @@ jobs:
               cd server/moodle
               echo '$CFG->behat_dataroot = $CFG->dataroot . "/behat";' >> config.php
               echo '$CFG->behat_dataroot_parent = $CFG->dataroot . "/behat";' >> config.php
-              echo '$CFG->behat_wwwroot = "http://127.0.0.1:8000";' >> config.php
+              echo '$CFG->behat_wwwroot = "http://localhost:8000";' >> config.php
               echo '$CFG->behat_prefix = "beh_";' >> config.php
   
   
@@ -279,10 +279,9 @@ jobs:
           cd server/moodle
           php admin/tool/behat/cli/util_single_run.php --install
 
-
-      - name: Confirm PHP server is still running
+      - name: Confirm PHP server accessibility
         run: |
-            curl -I http://127.0.0.1:8000 || echo "Server not accessible at 127.0.0.1:8000"
+            curl -I http://localhost:8000 || echo "Server not accessible at localhost:8000"
      
 
       - name: Run livequiz-specific Behat tests in Firefox
