@@ -250,7 +250,11 @@ jobs:
                 cd server/moodle
                 php admin/tool/behat/cli/init.php --enable
       
-         
+      - name: Debug config.php settings
+        run: |
+                  echo "**** Debugging config.php settings ****"
+                  grep 'wwwroot' server/moodle/config.php
+              
 
                 
       
