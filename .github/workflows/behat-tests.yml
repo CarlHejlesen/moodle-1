@@ -29,51 +29,53 @@ jobs:
           extensions: phar, iconv, mbstring, gd, intl, sodium, zip
           tools: composer
 
-      - name: Set up MariaDB and Moodle Database
-        run: |
-          set -e # Exit immediately if any command fails
-          mariadb_data_dir="./mariadb_data"
-          mariadb_socket="/run/mysqld/mysqld.sock"
-          moodle_db_name="moodle"
-          moodle_sql_file="./MoodleSQL.sql"
-          root_username="root"
-          root_password="root"
-
-          # Prepare MariaDB data directory
-          mkdir -p "${mariadb_data_dir}"
-
-          # Initialize MariaDB if not done
-          if [ ! -d "${mariadb_data_dir}/mysql" ]; then
-            mysql_install_db --datadir=${mariadb_data_dir}
-            sudo chmod -R 2777 "$(dirname ${mariadb_socket})"
-            mysqld --datadir=${mariadb_data_dir} --socket=${mariadb_socket} --skip-grant-tables &
-            TEMP_MYSQL_PID=$!
-
-            while [ ! -S ${mariadb_socket} ]; do
-              echo "Waiting for MariaDB socket..."
-              sleep 2
-            done
-
-            echo "Setting root password..."
-            mysql -uroot -S${mariadb_socket} <<-EOF
-            FLUSH PRIVILEGES;
-            ALTER USER 'root'@'localhost' IDENTIFIED BY '${root_password}';
-            FLUSH PRIVILEGES;
-
-            mysql -uroot -p${root_password} -S${mariadb_socket} -e "CREATE DATABASE IF NOT EXISTS ${moodle_db_name}"
-            
-            if [ -f "${moodle_sql_file}" ]; then
-              mysql -uroot -p${root_password} -S${mariadb_socket} ${moodle_db_name} < ${moodle_sql_file} || echo "SQL file import failed"
+          - name: Set up MariaDB and Moodle Database
+          run: |
+            set -e # Exit immediately if any command fails
+            mariadb_data_dir="./mariadb_data"
+            mariadb_socket="/run/mysqld/mysqld.sock"
+            moodle_db_name="moodle"
+            moodle_sql_file="./MoodleSQL.sql"
+            root_username="root"
+            root_password="root"
+  
+            # Prepare MariaDB data directory
+            mkdir -p "${mariadb_data_dir}"
+  
+            # Initialize MariaDB if not done
+            if [ ! -d "${mariadb_data_dir}/mysql" ]; then
+              mysql_install_db --datadir=${mariadb_data_dir}
+              sudo chmod -R 2777 "$(dirname ${mariadb_socket})"
+              mysqld --datadir=${mariadb_data_dir} --socket=${mariadb_socket} --skip-grant-tables &
+              TEMP_MYSQL_PID=$!
+  
+              while [ ! -S ${mariadb_socket} ]; do
+                echo "Waiting for MariaDB socket..."
+                sleep 2
+              done
+  
+              echo "Setting root password..."
+              mysql -uroot -S${mariadb_socket} <<EOF
+  FLUSH PRIVILEGES;
+  ALTER USER 'root'@'localhost' IDENTIFIED BY '${root_password}';
+  FLUSH PRIVILEGES;
+  EOF
+              
+              # Ensure EOF ends the block, then run additional commands outside the EOF block
+              mysql -uroot -p${root_password} -S${mariadb_socket} -e "CREATE DATABASE IF NOT EXISTS ${moodle_db_name}"
+              
+              if [ -f "${moodle_sql_file}" ]; then
+                mysql -uroot -p${root_password} -S${mariadb_socket} ${moodle_db_name} < ${moodle_sql_file} || echo "SQL file import failed"
+              fi
+              
+              kill $TEMP_MYSQL_PID
+              wait $TEMP_MYSQL_PID
             fi
-            
-            kill $TEMP_MYSQL_PID
-            wait $TEMP_MYSQL_PID
-          fi
-
-          # Start MariaDB
-          mysqld --datadir=${mariadb_data_dir} --socket=${mariadb_socket} &
-          MARIADB_PID=$!
-          sleep 5
+  
+            # Start MariaDB
+            mysqld --datadir=${mariadb_data_dir} --socket=${mariadb_socket} &
+            MARIADB_PID=$!
+            sleep 5
 
       - name: Start PHP server for Moodle
         run: |
