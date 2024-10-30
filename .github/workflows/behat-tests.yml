@@ -312,28 +312,7 @@ jobs:
               
 
 
-      - name: Confirm PHP server accessibility
-        run: |
-                echo "**** Testing server health at http://127.0.0.1:8000 ****"
-                curl -I http://127.0.0.1:8000 || {
-                  echo "Server not accessible at 127.0.0.1:8000. Check if the PHP server is running."
-                }
-         
-                - name: Confirm PHP server accessibility with delay
-                run: |
-                  echo "Waiting for PHP server at http://127.0.0.1:8000..."
-                  for i in {1..10}; do
-                    if curl -sI http://127.0.0.1:8000 | grep "200 OK" > /dev/null; then
-                      echo "PHP server is accessible."
-                      break
-                    fi
-                    echo "Server not accessible, retrying in 2 seconds..."
-                    sleep 2
-                  done
-                  if ! curl -sI http://127.0.0.1:8000 | grep "200 OK" > /dev/null; then
-                    echo "Server failed to start within expected time."
-                  fi
-              
+
 
 
 # Debug - Check behat environment directory
