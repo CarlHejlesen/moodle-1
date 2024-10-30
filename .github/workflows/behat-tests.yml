@@ -2,9 +2,9 @@ name: Behat
 
 on:
   pull_request:
-    branches: behat-cart
+    branches: behat-carl
   push:
-    branches: behat-cart
+    branches: behat-carl
 
 jobs:
   build-test:
