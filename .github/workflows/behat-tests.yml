@@ -252,37 +252,7 @@ jobs:
       
          
 
-      - name: Configure Behat for @livequiz tests
-        run: |
-                  # Define the behat.yml path for convenience
-                  BEHAT_YML_PATH="../moodledata/behat/behatrun/behat/behat.yml"
-        
-                  # Check if behat.yml exists
-                  if [ -f "$BEHAT_YML_PATH" ]; then
-                    echo "**** behat.yml found, verifying @livequiz configuration ****"
-        
-                    # Check if @livequiz tag is already present in behat.yml
-                    if ! grep -q "@livequiz" "$BEHAT_YML_PATH"; then
-                      echo "Adding @livequiz configuration to behat.yml..."
-        
-                      # Append the @livequiz configuration to behat.yml
-                      echo "
-                        suites:
-                          livequiz_suite:
-                            paths:
-                              - mod/livequiz/tests/behat
-                            filters:
-                              tags: '@livequiz'
-                      " >> "$BEHAT_YML_PATH"
-                      echo "@livequiz suite added to behat.yml successfully."
-                    else
-                      echo "@livequiz tag is already configured in behat.yml."
-                    fi
-                  else
-                    echo "Error: behat.yml not found at $BEHAT_YML_PATH. Ensure the Behat environment is initialized correctly."
-                    exit 1
-                  fi
-                        
+                
       
       # **NYT STEP**: Sørg for korrekte tilladelser og ejerskab til moodledata
       - name: Adjust permissions and ownership for moodledata
@@ -331,6 +301,11 @@ jobs:
                   exit 1
                 }
          
+# Debug - Check behat environment directory
+      - name: Verify Behat Environment Directory Structure
+        run: |
+          echo "**** Checking Behat environment directory structure ****"
+           ls -R ../moodledata/behat || echo "Error: Behat directory structure is missing."
 
 
 
