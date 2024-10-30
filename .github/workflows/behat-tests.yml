@@ -36,10 +36,12 @@ jobs:
         run: |
           cp permcashe/permcomposer.json composer.json
 
-      - name: Copy init.php for Behat
+      - name: Copy init.php and clilib.php for Behat
         run: |
           mkdir -p admin/tool/behat/cli
           cp permcashe/init.php admin/tool/behat/cli/init.php
+          mkdir -p lib
+          cp permcashe/lib/clilib.php lib/clilib.php
 
       - name: Install Composer dependencies
         run: composer install
