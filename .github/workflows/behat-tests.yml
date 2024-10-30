@@ -304,52 +304,54 @@ jobs:
 
       - name: Run livequiz-specific Behat tests in Firefox
         run: |
-                  cd server/moodle
+                          cd server/moodle
+                
+                          # Debug - View config.php to confirm proper configuration
+                          echo "**** Debugging config.php ****"
+                          cat config.php || echo "config.php not found or not readable"
+                
+                          # Debug - Check if behat.yml configuration file exists and is configured correctly
+                          echo "**** Debugging behat.yml ****"
+                          if [ -f ../moodledata/behat/behatrun/behat/behat.yml ]; then
+                            cat ../moodledata/behat/behatrun/behat/behat.yml
+                          else
+                            echo "behat.yml was not found at the expected location."
+                          fi
         
-                  # Debug - View config.php to confirm proper configuration
-                  echo "**** Debugging config.php ****"
-                  cat config.php || echo "config.php not found or not readable"
+                          # Verify behat.yml includes @livequiz paths
+                          echo "**** Confirming @livequiz paths in behat.yml ****"
+                          if ! grep -q "@livequiz" ../moodledata/behat/behatrun/behat/behat.yml; then
+                            echo "Warning: @livequiz paths may not be included in behat.yml."
+                          fi
+                
+                          # Debug - Ensure required services are running: Selenium, PHP server, MariaDB
+                          echo "**** Checking running services ****"
+                          ps aux | grep -E "(selenium|php|mariadb|mysqld)" || echo "Required services may not be running as expected."
+                
+                          # Debug - Confirm PHP server accessibility at localhost
+                          echo "**** Testing PHP server connection at localhost:8000 ****"
+                          curl -I http://127.0.0.1:8000 || {
+                            echo "PHP server not accessible at 127.0.0.1:8000. Ensure the PHP server is running and accessible."
+                            exit 1
+                          }
+                
+                          # Additional Debug - Confirm directory structure and permissions for Moodle data
+                          echo "**** Verifying directory structure and permissions for server/moodledata ****"
+                          ls -la ../moodledata || echo "Unable to list contents of ../moodledata"
+                          ls -la ../moodledata/behat || echo "Unable to list contents of ../moodledata/behat"
+                
+                          # Extra Debug - Confirm behat.yml configuration details and environment readiness
+                          echo "**** Verifying behat.yml configuration details ****"
+                          cat ../moodledata/behat/behatrun/behat/behat.yml || echo "behat.yml is missing or has incorrect configuration."
+                
+                          # Debug - Run Behat environment diagnostics for setup verification
+                          echo "**** Running Behat environment diagnostics ****"
+                          php admin/tool/behat/cli/util_single_run.php --diag || echo "Behat environment diagnostics encountered an issue."
+                
+                          # Run Behat tests with detailed verbosity for troubleshooting
+                          echo "**** Running Behat tests with livequiz tag ****"
+                          vendor/bin/behat -vv --config `realpath ../moodledata/behat/behatrun/behat/behat.yml` --profile=headlessfirefox --tags="@livequiz" mod/livequiz/tests || {
+                            echo "Behat tests failed. Please review the debug logs above for troubleshooting."
+                            exit 1
+                          }
         
-                  # Debug - Check if behat.yml configuration file exists and is configured correctly
-                  echo "**** Debugging behat.yml ****"
-                  if [ -f ../moodledata/behat/behatrun/behat/behat.yml ]; then
-                    cat ../moodledata/behat/behatrun/behat/behat.yml
-                  else
-                    echo "behat.yml was not found at the expected location."
-                  fi
-        
-                  # Debug - Ensure required services are running: Selenium, PHP server, MariaDB
-                  echo "**** Checking running services ****"
-                  ps aux | grep -E "(selenium|php|mariadb|mysqld)" || echo "Required services may not be running as expected."
-        
-                  # Debug - Confirm PHP server accessibility at localhost
-                  echo "**** Testing PHP server connection at localhost:8000 ****"
-                  curl -I http://127.0.0.1:8000 || {
-                    echo "PHP server not accessible at 127.0.0.1:8000. Ensure the PHP server is running and accessible."
-                    exit 1
-                  }
-        
-                  # Additional Debug - Confirm directory structure and permissions for Moodle data
-                  echo "**** Verifying directory structure and permissions for server/moodledata ****"
-                  ls -la ../moodledata || echo "Unable to list contents of ../moodledata"
-                  ls -la ../moodledata/behat || echo "Unable to list contents of ../moodledata/behat"
-        
-                  # Extra Debug - Confirm behat.yml configuration details and environment readiness
-                  echo "**** Verifying behat.yml configuration details ****"
-                  cat ../moodledata/behat/behatrun/behat/behat.yml || echo "behat.yml is missing or has incorrect configuration."
-        
-                  # Debug - Run Behat environment diagnostics for setup verification
-                  echo "**** Running Behat environment diagnostics ****"
-                  php admin/tool/behat/cli/util_single_run.php --diag || echo "Behat environment diagnostics encountered an issue."
-        
-                  # Run Behat tests with detailed verbosity for troubleshooting
-                  echo "**** Running Behat tests with livequiz tag ****"
-                  vendor/bin/behat -vv --config `realpath ../moodledata/behat/behatrun/behat/behat.yml` --profile=headlessfirefox --tags="@livequiz" mod/livequiz/tests || {
-                    echo "Behat tests failed. Please review the debug logs above for troubleshooting."
-                    exit 1
-                  }
-        
-        
-              
-
-      
