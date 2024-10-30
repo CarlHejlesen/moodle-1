@@ -246,6 +246,12 @@ jobs:
           cd server/moodle
           php admin/tool/behat/cli/init.php --enable
       
+      # **NYT STEP**: Sørg for korrekte tilladelser og ejerskab til moodledata
+      - name: Adjust permissions and ownership for moodledata
+        run: |
+          sudo chown -R $USER:$USER server/moodledata
+          sudo chmod -R 777 server/moodledata
+
   
       # **NEW STEP**: Copy `test_environment_enabled.txt` to `moodledata` root
       - name: Ensure test mode file is in the correct location
