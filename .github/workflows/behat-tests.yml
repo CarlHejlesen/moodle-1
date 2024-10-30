@@ -283,6 +283,14 @@ jobs:
         run: |
             curl -I http://127.0.0.1:8000 || echo "Server not accessible at 127.0.0.1:8000"
      
+      - name: Debug PHP and MariaDB services
+        run: |
+              echo "**** Checking running services ****"
+              ps aux | grep -E "(php|mariadb|mysqld)"
+              echo "**** Testing localhost connection with curl ****"
+              curl -I http://127.0.0.1:8000 || echo "Connection to http://127.0.0.1:8000 failed"
+
+
 
       - name: Run livequiz-specific Behat tests in Firefox
         run: |
