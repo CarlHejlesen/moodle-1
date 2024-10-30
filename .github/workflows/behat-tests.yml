@@ -3,7 +3,7 @@ name: Run Behat Tests for LiveQuiz
 on:
   push:
     branches:
-      - main
+      - behat-carl
   pull_request:
     branches:
       - main
