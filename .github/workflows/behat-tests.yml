@@ -18,7 +18,7 @@ jobs:
         run: |
           sudo apt update
           sudo apt install -y mariadb-server firefox
-          sudo apt install -y php php-mbstring php-zip php-xml php-soap php-intl php-sodium php-gd php-xmlrpc
+          sudo apt install -y php php-mbstring php-zip php-xml php-soap php-intl php-gd php-xmlrpc
           
       - name: Exorcises Snap from the system
         run: |
@@ -30,7 +30,7 @@ jobs:
         id: setup-php
         uses: shivammathur/setup-php@v2
         with:
-          extensions: phar, iconv, mbstring, gd, intl, sodium, zip
+          extensions: phar, iconv, mbstring, gd, intl, zip
           tools: composer
 
       - name: Install Composer and Moodle Plugin CI
