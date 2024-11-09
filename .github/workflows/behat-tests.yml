@@ -1,94 +1,97 @@
-name: Moodle Plugin CI
+name: Moodle Plugin CI & Behat
 
-on: [push, pull_request, workflow_dispatch]
+on:
+  pull_request:
+    branches: [ "main", "staging" ]
+  push:
+    branches: [ "vincetheis-behat" ]
 
 jobs:
-  selftest:
-    name: CI test (Code Validation)
-    runs-on: ubuntu-22.04
+  build-test:
+    runs-on: ubuntu-latest
 
     steps:
-    - name: Check out repository code
-      uses: actions/checkout@v4
+      - name: Checkout repository
+        uses: actions/checkout@v3
+        
+      - name: Install dependencies
+        run: |
+          sudo apt update
+          sudo apt install -y mariadb-server firefox
+          sudo apt install -y php php-mbstring php-zip php-xml php-soap php-intl php-sodium php-gd php-xmlrpc
+          
+      - name: Exorcises Snap from the system
+        run: |
+          echo ✝️✝️ GO AWAY SNAP GO AWAY GO AWAY ✝️✝️
+          sudo apt autoremove --purge snapd
+          sudo apt-mark hold snapd
 
-    - name: Setup PHP 7.4
-      uses: shivammathur/setup-php@v2
-      with:
-        php-version: 7.4
-        coverage: xdebug
+      - name: Setup PHP
+        id: setup-php
+        uses: shivammathur/setup-php@v2
+        with:
+          extensions: phar, iconv, mbstring, gd, intl, sodium, zip
+          tools: composer
 
-    - name: Install Dependencies
-      run: |
-        composer install
-        composer require moodlehq/moodle-plugin-ci
+      - name: Install Composer and Moodle Plugin CI
+        run: |
+          composer install
+          composer require moodlehq/moodle-plugin-ci
 
-    - name: Validate Code
-      run: moodle-plugin-ci phplint server/moodle/mod/livequiz
+      - name: Set up the database
+        run: |
+          sudo systemctl start mariadb
+          sudo mysql -e "CREATE DATABASE moodle;"
 
-  citest:
-    name: Integration tests for server/moodle/mod/livequiz
-    needs: selftest
-    runs-on: ubuntu-22.04
+      - name: Initialise moodle, create config.php
+        run: |
+          echo en_AU.UTF-8 UTF-8 | sudo tee -a /etc/locale.gen
+          sudo locale-gen
+          
+          REPO_ROOT="`pwd`"
+          cd "$REPO_ROOT"/server/moodle
+          php admin/cli/install.php \
+              --lang=en \
+              --wwwroot="http://127.0.0.1:8000/" \
+              --dataroot="$REPO_ROOT/server/moodledata" \
+              --dbpass=root \
+              --dbsocket=/run/mysqld/mysqld.sock \
+              --skip-database \
+              --non-interactive \
+              --agree-license \
+              --allow-unstable \
+              --fullname="Moodle Testing" \
+              --shortname="mtt" \
+              --adminpass="hunter2"
+              
+      - name: Install & Init Behat
+        run: | 
+          cd server/moodle
+          php admin/tool/behat/cli/init.php
 
-    services:
-      postgres:
-        image: postgres:13
-        env:
-          POSTGRES_USER: 'postgres'
-          POSTGRES_HOST_AUTH_METHOD: 'trust'
-        ports:
-        - 5432:5432
-        options: --health-cmd pg_isready --health-interval 10s --health-timeout 5s --health-retries 3
+      - name: Setup Firefox Driver for Behat
+        uses: browser-actions/setup-geckodriver@latest
 
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - php: '8.1'
-            moodle-branch: 'main'
-            moodle-app: 'true'
+      - name: Set up Selenium
+        run: |
+          wget https://github.com/SeleniumHQ/selenium/releases/download/selenium-4.25.0/selenium-server-4.25.0.jar
+          java -jar selenium-server-4.25.0.jar standalone &
 
-    steps:
-    - name: Check out repository code
-      uses: actions/checkout@v4
+      - name: Download moodle-browser-config
+        run: |
+          export MBCPATH=`realpath .`/moodle-browser-config
+          git clone https://github.com/andrewnicols/moodle-browser-config $MBCPATH
+          sed -i "/^require_once(__DIR__ . '\/lib\/setup.php');/i require_once('$MBCPATH/init.php');" server/moodle/config.php
 
-    - name: Setup PHP ${{ matrix.php }}
-      uses: shivammathur/setup-php@v2
-      with:
-        php-version: ${{ matrix.php }}
-        extensions: pgsql, zip, gd, xmlrpc, soap
-        ini-values: max_input_vars=5000
-        coverage: xdebug
+      - name: Run Behat tests for mod/livequiz
+        run: |
+          cd server/moodle
+          vendor/bin/behat --config `realpath ../moodledata/behat/behatrun/behat/behat.yml` --profile=headlessfirefox --tags=@mod_livequiz
 
-    - name: Install Dependencies
-      run: |
-        composer install
-        composer require moodlehq/moodle-plugin-ci
-
-    - name: Install moodle-plugin-ci
-      run: moodle-plugin-ci install -vvv
-      env:
-        DB: 'pgsql'
-        MOODLE_BRANCH: ${{ matrix.moodle-branch }}
-        MOODLE_APP: ${{ matrix.moodle-app }}
-
-    - name: Run PHP Lint
-      run: moodle-plugin-ci phplint server/moodle/mod/livequiz
-
-    - name: Run PHP Copy-Paste Detector (CPD)
-      run: moodle-plugin-ci phpcpd server/moodle/mod/livequiz
-
-    - name: Run PHP Mess Detector (MD)
-      run: moodle-plugin-ci phpmd server/moodle/mod/livequiz
-
-    - name: Run CodeSniffer (PHPCS)
-      run: moodle-plugin-ci phpcs --max-warnings 0 server/moodle/mod/livequiz
-
-    - name: Run PHPUnit tests only for server/moodle/mod/livequiz
-      run: moodle-plugin-ci phpunit --path=server/moodle/mod/livequiz --verbose --coverage-text --fail-on-warning
-
-    - name: Run Behat tests only for server/moodle/mod/livequiz
-      run: |
-        moodle-plugin-ci behat --path=server/moodle/mod/livequiz --profile default
-        moodle-plugin-ci behat --path=server/moodle/mod/livequiz --profile chrome
-        moodle-plugin-ci behat --path=server/moodle/mod/livequiz --profile firefox --tags="@local_ci&&~@app"
+      - name: Run Moodle Plugin CI tests for mod/livequiz
+        run: |
+          moodle-plugin-ci phplint server/moodle/mod/livequiz
+          moodle-plugin-ci phpcpd server/moodle/mod/livequiz
+          moodle-plugin-ci phpmd server/moodle/mod/livequiz
+          moodle-plugin-ci phpcs --max-warnings 0 server/moodle/mod/livequiz
+          moodle-plugin-ci phpunit --path=server/moodle/mod/livequiz --verbose --coverage-text --fail-on-warning
