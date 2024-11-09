@@ -1,378 +1,97 @@
-name: Beha
+name: Moodle Plugin CI
 
-on:
-  pull_request:
-    branches: [ "main", "staging"  ]
-  push:
-    branches: "behat-carl"
+on: [push, pull_request, workflow_dispatch]
 
 jobs:
-  build-test:
-    runs-on: ubuntu-latest
+  selftest:
+    name: CI test (make validate)
+    runs-on: ubuntu-22.04
 
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v3
-        
-      - name: install mariadb
-        run: | 
-          sudo apt install mariadb-server
-          sudo systemctl disable mariadb
-          sudo systemctl stop mariadb
-        
-#     - name: install Firefox
-#       run: sudo apt install firefox
+    - name: Check out repository code
+      uses: actions/checkout@v4
 
-      - name: Setup PHP
-        id: setup-php
-        uses: shivammathur/setup-php@v2
-        with:
-          extensions: phar, iconv, mbstring, gd, intl, sodium, zip
-          tools: composer
+    - name: Setup PHP 7.4
+      uses: shivammathur/setup-php@v2
+      with:
+        php-version: 7.4
+        coverage: xdebug
 
+    - name: Initialise
+      run: make init
 
-      - name: Set up the database and start pretty much everything
-        run: |
-          set -x
-          mariadb_data_dir="./mariadb_data"
-          mariadb_socket="/run/mysqld/mysqld.sock"
-          moodle_db_name="moodle"
-          moodle_sql_file="./MoodleSQL.sql"
-          root_username="root"
-          root_password="root"
+    - name: Validate
+      run: make validate
 
-          # Function to check and kill existing processes
-          kill_existing() {
-            local process=$1
-            if pgrep -x "$process" > /dev/null; then
-              echo "Killing existing $process process..."
-              sudo pkill -x "$process"
-              sleep 2
-            fi
-          }
-          
-          # Function to kill process using a specific port
-          kill_port_user() {
-            local port=$1
-            local pid=$(lsof -ti:$port)
-            if [ ! -z "$pid" ]; then
-              echo "Killing process using port $port..."
-              sudo kill -9 $pid
-              sleep 2
-            fi
-          }
-          
-          # Ensure MariaDB data directory exists
-          mkdir -p ${mariadb_data_dir}
-          ls -l
-          
-          # Ensure MariaDB data directory exists
-          mkdir -p ${mariadb_data_dir}
-          ls -l
-          
-          # Initialize MariaDB if not already done
-          if [ ! -d "${mariadb_data_dir}/mysql" ]; then
-            mysql_install_db --datadir=${mariadb_data_dir}
-            # Start MariaDB temporarily to set up the database
-            # sudo touch ${mariadb_socket}
-            sudo chmod -R 2777 `dirname ${mariadb_socket}`
-            mysqld --datadir=${mariadb_data_dir} --socket=${mariadb_socket} --skip-grant-tables &
-            TEMP_MYSQL_PID=$!
+  citest:
+    name: Integration tests for server/moodle/mod/livequiz
+    needs: selftest
+    runs-on: ubuntu-22.04
 
-            while [ ! -S ${mariadb_socket} ];
-            do
-              echo "no socket file. Waiting 2 secs and trying again";
-              sleep 2
+    services:
+      postgres:
+        image: postgres:13
+        env:
+          POSTGRES_USER: 'postgres'
+          POSTGRES_HOST_AUTH_METHOD: 'trust'
+        ports:
+        - 5432:5432
+        options: --health-cmd pg_isready --health-interval 10s --health-timeout 5s --health-retries 3
 
-            done
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - php: '8.1'
+            moodle-branch: 'main'
+            moodle-app: 'true'
 
-            echo "MariaDB is up continuing.";
-            
-            
-            
-            mysqld --verbose --help | grep "socket"
-            ps aux | grep mysqld
-            # Set root password and authentication method
-            echo "Setting root password..."
-            mysql -uroot -S${mariadb_socket} <<EOF
-            FLUSH PRIVILEGES;
-            ALTER USER 'root'@'localhost' IDENTIFIED BY '${root_password}';
-            FLUSH PRIVILEGES;
-          EOF
-          
-            # Verify root password
-            echo "Verifying root password..."
-            mysql -uroot -p${root_password} -S${mariadb_socket} -e "SELECT 1;" || {
-              echo "Error: Root password verification failed."
-              kill $TEMP_MYSQL_PID
-              wait $TEMP_MYSQL_PID
-              exit 1
-            }
-            
-            mysql -uroot -p${root_password} -S${mariadb_socket} -e "CREATE DATABASE IF NOT EXISTS ${moodle_db_name}" || {
-              echo "Error: Failed to create database ${moodle_db_name}."
-              kill $TEMP_MYSQL_PID
-              wait $TEMP_MYSQL_PID
-              exit 1
-            }
-            
-            if [ -f "${moodle_sql_file}" ]; then
-              mysql -uroot -p${root_password} -S${mariadb_socket} ${moodle_db_name} < ${moodle_sql_file} && {
-                echo "SQL file imported successfully."
-              } || {
-                echo "Error: Failed to import SQL file."
-              }
-            else
-              echo "Warning: ${moodle_sql_file} not found. Database created but not populated."
-            fi
-            
-            kill $TEMP_MYSQL_PID
-            wait $TEMP_MYSQL_PID
-          fi
+    steps:
+    - name: Check out repository code
+      uses: actions/checkout@v4
 
-          # Kill existing MariaDB and PHP processes
-          kill_existing "mysqld"
-          kill_existing "php"
+    - name: Setup PHP ${{ matrix.php }}
+      uses: shivammathur/setup-php@v2
+      with:
+        php-version: ${{ matrix.php }}
+        extensions: pgsql, zip, gd, xmlrpc, soap
+        ini-values: max_input_vars=5000
+        coverage: xdebug
 
-          # Start MariaDB
-          start_mariadb() {
-            echo "Starting MariaDB..."
-            mysqld --datadir=${mariadb_data_dir} --socket=${mariadb_socket} &
-            MARIADB_PID=$!
-            while [ ! -S ${mariadb_socket} ];
-            do
-              echo "no socket file. Waiting 2 secs and trying again";
-              sleep 2
+    - name: Initialise moodle-plugin-ci
+      run: |
+        make init
+        cp -R tests/Fixture/moodle-local_ci ../moodle-local_ci
+        echo $(cd bin; pwd) >> $GITHUB_PATH
+        echo $(cd vendor/bin; pwd) >> $GITHUB_PATH
+        echo "CI_BUILD_DIR="$(cd ../moodle-local_ci; pwd) >> $GITHUB_ENV
+        sudo locale-gen en_AU.UTF-8
+        echo "NVM_DIR=$HOME/.nvm" >> $GITHUB_ENV
 
-            done
+    - name: Install moodle-plugin-ci
+      run: moodle-plugin-ci install -vvv
+      env:
+        DB: 'pgsql'
+        MOODLE_BRANCH: ${{ matrix.moodle-branch }}
+        MOODLE_APP: ${{ matrix.moodle-app }}
 
-            echo "socket is here continuing.";
-          }
+    - name: Run PHP Lint
+      run: moodle-plugin-ci phplint server/moodle/mod/livequiz
 
-          # Adminer is not required for testing, so we skip the setup
+    - name: Run PHP Copy-Paste Detector (CPD)
+      run: moodle-plugin-ci phpcpd server/moodle/mod/livequiz
 
-          # Start PHP built-in server for Moodle
-          start_php_server() {
-            echo "Starting PHP built-in server for Moodle..."
-            php -S 0.0.0.0:8000 -t `realpath server/moodle` &
-            PHP_SERVER_PID=$!
-            sleep 5
-          }
+    - name: Run PHP Mess Detector (MD)
+      run: moodle-plugin-ci phpmd server/moodle/mod/livequiz
 
-          # Function to stop services
-          stop_services() {
-            echo "Stopping services..."
-            kill $MARIADB_PID  $PHP_SERVER_PID 2>/dev/null
-            rm -f ${mariadb_socket}
-          }
-          
-          # Start services`
-          start_mariadb
-          start_php_server
+    - name: Run CodeSniffer (PHPCS)
+      run: moodle-plugin-ci phpcs --max-warnings 0 server/moodle/mod/livequiz
 
-          echo "MariaDB and PHP server are now running."
-          echo "Moodle is available at http://localhost:8000"
-          echo "To connect to MariaDB, use:"
-          echo " Host: 127.0.0.1 or localhost"
-          echo " Username: root"
-          echo " Password: ${root_password}"
-          echo " Database: ${moodle_db_name}"
-          echo "Press Ctrl+C to stop the services and exit."
+    - name: Run PHPUnit tests only for server/moodle/mod/livequiz
+      run: moodle-plugin-ci phpunit --path=server/moodle/mod/livequiz --verbose --coverage-text --fail-on-warning
 
-      - name: Set up geckodriver
-        uses: browser-actions/setup-geckodriver@latest
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-
-
-      - name: Initialise moodle, to create config.php
-        run: |
-          echo en_AU.UTF-8 UTF-8 | sudo tee -a /etc/locale.gen
-          sudo locale-gen
-          
-          if [ "$(php -r "echo ini_get('max_input_vars');")" -lt 5000 ]; then
-            echo "max_input_vars = 5000" >> /etc/php/8.3/cli/php.ini
-          fi
-          export LANG="en_AU.UTF-8"
-          export LC_ALL="en_AU.UTF-8"
-          export PHPRC=`realpath /etc/php/8.3/cli/php.ini`
-
-          
-          REPO_ROOT="`pwd`"
-          cd "$REPO_ROOT"/server/moodle
-          php admin/cli/install.php \
-              --lang=en \
-              --wwwroot="http://localhost:8000/" \
-              --dataroot="$REPO_ROOT/server/moodledata" \
-              --dbpass=root \
-              --dbport=3306 \
-              --dbsocket=/run/mysqld/mysqld.sock \
-              --skip-database \
-              --non-interactive \
-              --agree-license \
-              --allow-unstable \
-              --fullname="Moodle testing thing" \
-              --shortname="mtt" \
-              --adminpass="hunter2"
-
-      - name: Set up selenium.
-        run: |
-          wget https://github.com/SeleniumHQ/selenium/releases/download/selenium-4.25.0/selenium-server-4.25.0.jar
-          #ampersand means in background
-          java -jar selenium-server-4.25.0.jar standalone &
-          echo `realpath .` >> $GITHUB_PATH
-
-      - name: Download moodle-browser-config
-        run: |
-          export MBCPATH=`realpath .`/moodle-browser-config
-          git clone https://github.com/andrewnicols/moodle-browser-config $MBCPATH
-
-          #Inserts require_once('$MBCPATH/init.php') before the other require_once, as specified in the document
-          sed -i "/^require_once(__DIR__ . '\/lib\/setup.php');/i require_once('$MBCPATH/init.php');" server/moodle/config.php
-        
-
-
-
-
-
-      - name: Set up Behat configuration in config.php
-        run: |
-              cd server/moodle
-              echo '$CFG->behat_dataroot = $CFG->dataroot . "/behat";' >> config.php
-              echo '$CFG->behat_dataroot_parent = $CFG->dataroot . "/behat";' >> config.php
-              echo '$CFG->behat_wwwroot = "http://127.0.0.1:8000";' >> config.php
-              echo '$CFG->behat_prefix = "beh_";' >> config.php
-  
-  
-    
-      - name: Install & Init Behat
-        run: | 
-                cd server/moodle
-                php admin/tool/behat/cli/init.php --enable
-      
-         
-
-                
-      
-      # **NYT STEP**: Sørg for korrekte tilladelser og ejerskab til moodledata
-      - name: Adjust permissions and ownership for moodledata
-        run: |
-          sudo chown -R $USER:$USER server/moodledata
-          sudo chmod -R 777 server/moodledata
-
-  
-      # **NEW STEP**: Copy `test_environment_enabled.txt` to `moodledata` root
-      - name: Ensure test mode file is in the correct location
-        run: |
-          cp server/moodledata/behat/test_environment_enabled.txt server/moodledata/test_environment_enabled.txt
-
-      # **TJEK**: Valider placering af test_environment_enabled.txt
-      - name: Validate test mode file placement
-        run: |
-          echo "**** Checking test_environment_enabled.txt location ****"
-          if [ -f server/moodledata/test_environment_enabled.txt ]; then
-            echo "test_environment_enabled.txt is correctly placed."
-          else
-            echo "Warning: test_environment_enabled.txt is missing in server/moodledata"
-          fi
-
-# Alternativ - installér Behat miljøet
-      - name: Force Reinitialise Behat (full install)
-        run: |
-          cd server/moodle
-          php admin/tool/behat/cli/util_single_run.php --install
-
-      - name: Confirm PHP server accessibility
-        run: |
-            curl -I http://127.0.0.1:8000 || echo "Server not accessible at 127.0.0.1:8000"
-     
-      - name: Debug PHP and MariaDB services
-        run: |
-              echo "**** Checking running services ****"
-              ps aux | grep -E "(php|mariadb|mysqld)"
-              echo "**** Testing localhost connection with curl ****"
-              curl -I http://127.0.0.1:8000 || echo "Connection to http://127.0.0.1:8000 failed"
-
-
-      - name: Initialize Behat
-        run: |
-                cd server/moodle
-                php admin/tool/behat/cli/init.php --enable || {
-                  echo "Behat initialization failed.";
-                  exit 1;
-                }
-     
-                
-      - name: Validate test mode file
-        run: |
-                  if [ ! -f server/moodledata/test_environment_enabled.txt ]; then
-                    echo "Error: test_environment_enabled.txt is missing in moodledata.";
-                    exit 1
-                  fi
-              
-
-
-
-
-
-# Debug - Check behat environment directory
-      - name: Verify Behat Environment Directory Structure
-        run: |
-          echo "**** Checking Behat environment directory structure ****"
-           ls -R ../moodledata/behat || echo "Error: Behat directory structure is missing."
-
-
-
-      - name: Run livequiz-specific Behat tests in Firefox
-        run: |
-                          cd server/moodle
-                
-                          # Debug - View config.php to confirm proper configuration
-                          echo "**** Debugging config.php ****"
-                          cat config.php || echo "config.php not found or not readable"
-                
-                          # Debug - Check if behat.yml configuration file exists and is configured correctly
-                          echo "**** Debugging behat.yml ****"
-                          if [ -f ../moodledata/behat/behatrun/behat/behat.yml ]; then
-                            cat ../moodledata/behat/behatrun/behat/behat.yml
-                          else
-                            echo "behat.yml was not found at the expected location."
-                          fi
-        
-                          # Verify behat.yml includes @livequiz paths
-                          echo "**** Confirming @livequiz paths in behat.yml ****"
-                          if ! grep -q "@livequiz" ../moodledata/behat/behatrun/behat/behat.yml; then
-                            echo "Warning: @livequiz paths may not be included in behat.yml."
-                          fi
-                
-                          # Debug - Ensure required services are running: Selenium, PHP server, MariaDB
-                          echo "**** Checking running services ****"
-                          ps aux | grep -E "(selenium|php|mariadb|mysqld)" || echo "Required services may not be running as expected."
-                
-                          # Debug - Confirm PHP server accessibility at localhost
-                          echo "**** Testing PHP server connection at localhost:8000 ****"
-                          curl -I http://127.0.0.1:8000 || {
-                            echo "PHP server not accessible at 127.0.0.1:8000. Ensure the PHP server is running and accessible."
-                            exit 1
-                          }
-                
-                          # Additional Debug - Confirm directory structure and permissions for Moodle data
-                          echo "**** Verifying directory structure and permissions for server/moodledata ****"
-                          ls -la ../moodledata || echo "Unable to list contents of ../moodledata"
-                          ls -la ../moodledata/behat || echo "Unable to list contents of ../moodledata/behat"
-                
-                          # Extra Debug - Confirm behat.yml configuration details and environment readiness
-                          echo "**** Verifying behat.yml configuration details ****"
-                          cat ../moodledata/behat/behatrun/behat/behat.yml || echo "behat.yml is missing or has incorrect configuration."
-                
-                          # Debug - Run Behat environment diagnostics for setup verification
-                          echo "**** Running Behat environment diagnostics ****"
-                          php admin/tool/behat/cli/util_single_run.php --diag || echo "Behat environment diagnostics encountered an issue."
-                
-                          # Run Behat tests with detailed verbosity for troubleshooting
-                          echo "**** Running Behat tests with livequiz tag ****"
-                          vendor/bin/behat -vv --config `realpath ../moodledata/behat/behatrun/behat/behat.yml` --profile=headlessfirefox --tags="@livequiz" mod/livequiz/tests || {
-                            echo "Behat tests failed. Please review the debug logs above for troubleshooting."
-                            exit 1
-                          }
-        
+    - name: Run Behat tests only for server/moodle/mod/livequiz
+      run: |
+        moodle-plugin-ci behat --path=server/moodle/mod/livequiz --profile default
+        moodle-plugin-ci behat --path=server/moodle/mod/livequiz --profile chrome
+        moodle-plugin-ci behat --path=server/moodle/mod/livequiz --profile firefox --tags="@local_ci&&~@app"
