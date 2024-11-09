@@ -4,7 +4,7 @@ on: [push, pull_request, workflow_dispatch]
 
 jobs:
   selftest:
-    name: CI test (make validate)
+    name: CI test (Code Validation)
     runs-on: ubuntu-22.04
 
     steps:
@@ -17,11 +17,13 @@ jobs:
         php-version: 7.4
         coverage: xdebug
 
-    - name: Initialise
-      run: make init
+    - name: Install Dependencies
+      run: |
+        composer install
+        composer require moodlehq/moodle-plugin-ci
 
-    - name: Validate
-      run: make validate
+    - name: Validate Code
+      run: moodle-plugin-ci phplint server/moodle/mod/livequiz
 
   citest:
     name: Integration tests for server/moodle/mod/livequiz
@@ -58,15 +60,10 @@ jobs:
         ini-values: max_input_vars=5000
         coverage: xdebug
 
-    - name: Initialise moodle-plugin-ci
+    - name: Install Dependencies
       run: |
-        make init
-        cp -R tests/Fixture/moodle-local_ci ../moodle-local_ci
-        echo $(cd bin; pwd) >> $GITHUB_PATH
-        echo $(cd vendor/bin; pwd) >> $GITHUB_PATH
-        echo "CI_BUILD_DIR="$(cd ../moodle-local_ci; pwd) >> $GITHUB_ENV
-        sudo locale-gen en_AU.UTF-8
-        echo "NVM_DIR=$HOME/.nvm" >> $GITHUB_ENV
+        composer install
+        composer require moodlehq/moodle-plugin-ci
 
     - name: Install moodle-plugin-ci
       run: moodle-plugin-ci install -vvv
